@@ -631,17 +631,14 @@ let handR = silhouette.handR;
 let head = silhouette.head;
 let avatarRig = null;
 
-if (!isMobile) {
-  loadAvatarFigure(figureRoot, silhouette.group).then((rig) => {
-    if (rig) {
-      avatarRig = rig;
-      // Tuck the chair forward under the avatar (silhouette uses the default spot)
-      chairGroup.position.z = -0.3;
-    }
-  });
-} else {
-  console.log("Avatar skipped on mobile (<768px) — using primitive silhouette");
-}
+// Temporarily load avatar on mobile too (was: desktop-only via !isMobile)
+loadAvatarFigure(figureRoot, silhouette.group).then((rig) => {
+  if (rig) {
+    avatarRig = rig;
+    // Tuck the chair forward under the avatar (silhouette uses the default spot)
+    chairGroup.position.z = -0.3;
+  }
+});
 
 /* ================== Dust in the light beam ================== */
 
