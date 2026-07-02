@@ -532,23 +532,14 @@ function buildChair(parent) {
   return chair;
 }
 
-function loadGltfAsset(loader, url, label) {
+function loadGltfAsset(loader, url) {
   return new Promise((resolve, reject) => {
     loader.load(
       url,
-      (gltf) => {
-        console.log(`${label} loaded successfully (${url})`);
-        resolve(gltf);
-      },
-      (event) => {
-        if (event.total > 0) {
-          const pct = Math.round((event.loaded / event.total) * 100);
-          console.log(`${label} loading: ${pct}%`);
-        }
-      },
+      (gltf) => resolve(gltf),
+      undefined,
       (error) => {
-        console.error(`AVATAR LOAD FAILED: ${label}`, error);
-        console.error(`AVATAR LOAD FAILED: ${error?.message || String(error)}`);
+        console.error("Avatar failed to load:", error.message);
         reject(error);
       }
     );
@@ -562,11 +553,9 @@ async function loadAvatarFigure(parent, silhouetteGroup) {
   gltfLoader.setDRACOLoader(dracoLoader);
 
   try {
-    console.log("Avatar load starting", { avatar: AVATAR_URL, typing: TYPING_URL });
-
     const [avatarGltf, typingGltf] = await Promise.all([
-      loadGltfAsset(gltfLoader, AVATAR_URL, "avatar.glb"),
-      loadGltfAsset(gltfLoader, TYPING_URL, "Typing.glb"),
+      loadGltfAsset(gltfLoader, AVATAR_URL),
+      loadGltfAsset(gltfLoader, TYPING_URL),
     ]);
     const root = avatarGltf.scene;
     let skeleton = null;
@@ -613,13 +602,10 @@ async function loadAvatarFigure(parent, silhouetteGroup) {
 
     parent.add(root);
     silhouetteGroup.visible = false;
-    console.log("Avatar loaded successfully");
 
     return { mixer };
   } catch (err) {
-    console.error("AVATAR LOAD FAILED:", err);
-    console.error(`AVATAR LOAD FAILED: ${err?.message || String(err)}`);
-    console.warn("Using primitive silhouette fallback after avatar load failure");
+    console.error("Avatar failed to load:", err.message);
     return null;
   } finally {
     dracoLoader.dispose();
