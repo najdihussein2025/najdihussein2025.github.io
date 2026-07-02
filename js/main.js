@@ -7,8 +7,8 @@
               camera static behind the developer (orbit angle 0);
               intro text fades out over 0.02 – 0.08
      PHASE 2  ORBIT        0.08 – 0.22
-              camera sweeps ORBIT_SWEEP (270° desktop / 90° mobile)
-              around the developer at CONSTANT radius ORBIT_R;
+             camera sweeps ORBIT_SWEEP (270° on all devices)
+             around the developer at CONSTANT radius ORBIT_R;
               height rises ORBIT_H0 → ORBIT_H1 (~10%); no zoom;
               lookAt fixed on head/monitor midpoint (LOOK_ORBIT)
      PHASE 3  PAUSE+DIVE   0.22 – 0.32
@@ -64,7 +64,7 @@ const SCENES = { top: 0, about: 0.38, work: 0.70, contact: 0.99 };
 const ORBIT_R = 6.2;                       // constant orbit radius — never changes mid-orbit
 const ORBIT_H0 = 3.0;                      // orbit height start
 const ORBIT_H1 = 3.3;                      // orbit height end (~10% rise)
-const ORBIT_SWEEP = (isMobile ? 90 : 270) * (Math.PI / 180);
+const ORBIT_SWEEP = 270 * (Math.PI / 180); // full 270° arc on all devices; only rendering cost (particles/shadows/pixelRatio) is reduced on mobile
 const FOV_BASE = 75;
 const FOV_DIVE = 90;
 

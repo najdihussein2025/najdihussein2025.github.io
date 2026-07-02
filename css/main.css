@@ -639,7 +639,8 @@ body.reduced-motion .os-wallpaper-track { animation: none; }
 /* ---------- Mobile ---------- */
 
 @media (max-width: 768px) {
-  #scroll-track { height: 780vh; }
+  /* scroll-track height intentionally NOT overridden — kept at 650vh (same as desktop)
+     so touch and wheel users traverse the same number of scroll units for the full orbit. */
 
   .nav nav a:not(.nav-cta) { display: none; }
   .window-body { padding: 1.2rem 1.1rem; }
