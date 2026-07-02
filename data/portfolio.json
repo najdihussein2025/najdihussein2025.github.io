@@ -74,41 +74,15 @@
       "description": "Multi-user tutoring platform with complex scheduling.",
       "stack": ["PHP", "Laravel", "MySQL"],
       "github": "",
-      "url": ""
+      "url": "https://www.original-iq.com/"
     },
-    {
-      "title": "Client Payment Manager",
-      "slug": "client-pay.saas",
-      "type": "Freelance",
-      "description": "Tracks freelance clients, projects and yearly renewals.",
-      "stack": ["Laravel", "React"],
-      "github": "",
-      "url": ""
-    },
+
     {
       "title": "Online Learning Platform",
       "slug": "learning-platform.app",
       "type": "Internship · IDS",
       "description": "Full-stack learning platform delivered during my internship at Integrated Digital Systems.",
       "stack": [".NET", "JavaScript", "SQL"],
-      "github": "",
-      "url": ""
-    },
-    {
-      "title": "Travel Agency Web API",
-      "slug": "travel-api.net",
-      "type": "Personal",
-      "description": "RESTful .NET Web API with layered architecture, EF Core, and JWT authentication.",
-      "stack": ["ASP.NET Core", "EF Core", "JWT"],
-      "github": "",
-      "url": ""
-    },
-    {
-      "title": "Azure DevOps CI/CD Pipeline",
-      "slug": "azure-cicd.yaml",
-      "type": "University",
-      "description": "Automated build and deployment pipelines with automated testing.",
-      "stack": ["Azure DevOps", "Git"],
       "github": "",
       "url": ""
     }

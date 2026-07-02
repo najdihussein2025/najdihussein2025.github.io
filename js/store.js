@@ -1,11 +1,7 @@
 /* ============================================================
-   store.js — shared data access for site + admin.
-
-   All content lives in data/portfolio.json.
-   Admin edits → localStorage draft → download JSON → push to repo.
+   store.js — loads static portfolio content from JSON.
    ============================================================ */
 
-const STORE_KEY = "hn_portfolio_draft";
 const DATA_URL = "data/portfolio.json";
 
 function emptyPortfolio() {
@@ -88,46 +84,14 @@ function normalizeData(data) {
 }
 
 const Store = {
-  _cached: null,
-
   empty() {
     return structuredClone(emptyPortfolio());
   },
 
   async load() {
-    try {
-      const draft = localStorage.getItem(STORE_KEY);
-      if (draft) {
-        this._cached = normalizeData(JSON.parse(draft));
-        return structuredClone(this._cached);
-      }
-    } catch (e) {
-      /* corrupted draft → fall back to file */
-    }
-
     const res = await fetch(DATA_URL, { cache: "no-cache" });
     if (!res.ok) throw new Error("fetch failed");
-    const data = normalizeData(await res.json());
-    this._cached = data;
-    return structuredClone(data);
-  },
-
-  saveDraft(data) {
-    this._cached = normalizeData(data);
-    localStorage.setItem(STORE_KEY, JSON.stringify(this._cached));
-  },
-
-  hasDraft() {
-    return localStorage.getItem(STORE_KEY) !== null;
-  },
-
-  discardDraft() {
-    localStorage.removeItem(STORE_KEY);
-    this._cached = null;
-  },
-
-  exportFile(data) {
-    return JSON.stringify(normalizeData(data), null, 2) + "\n";
+    return structuredClone(normalizeData(await res.json()));
   }
 };
 

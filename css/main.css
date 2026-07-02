@@ -492,6 +492,8 @@ img { display: block; max-width: 100%; }
   padding: clamp(1rem, 2.4vw, 1.6rem) clamp(1.4rem, 3.5vw, 2.4rem);
   max-height: calc(100vh - 200px);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .project {
@@ -637,6 +639,8 @@ body.reduced-motion .os-wallpaper-track { animation: none; }
 /* ---------- Mobile ---------- */
 
 @media (max-width: 768px) {
+  #scroll-track { height: 780vh; }
+
   .nav nav a:not(.nav-cta) { display: none; }
   .window-body { padding: 1.2rem 1.1rem; }
   .about-grid { flex-direction: column; align-items: center; text-align: center; }
@@ -644,4 +648,26 @@ body.reduced-motion .os-wallpaper-track { animation: none; }
   .badges { justify-content: center; }
   .folder-grid { gap: 1.6rem; }
   .folder-icon { width: 60px; height: 44px; }
+
+  #work.layer {
+    align-items: flex-start;
+    padding-top: 5.5rem;
+  }
+
+  .window--projects {
+    max-height: calc(100dvh - 6rem);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .window--projects .window-body {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    scrollbar-width: thin;
+  }
 }

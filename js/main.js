@@ -549,6 +549,63 @@ function escHtml(str) {
     .replace(/"/g, "&quot;");
 }
 
+function phoneToWhatsApp(phone) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  return digits ? `https://wa.me/${digits}` : "#";
+}
+
+function setupProjectsMobileScroll() {
+  if (!isMobile || !projectsBody) return;
+
+  const el = projectsBody;
+  let touchY = 0;
+
+  el.addEventListener(
+    "touchstart",
+    (e) => {
+      touchY = e.touches[0].clientY;
+    },
+    { passive: true }
+  );
+
+  el.addEventListener(
+    "touchmove",
+    (e) => {
+      if (el.scrollHeight <= el.clientHeight + 1) return;
+
+      const y = e.touches[0].clientY;
+      const goingDown = y < touchY;
+      const goingUp = y > touchY;
+      touchY = y;
+
+      const atTop = el.scrollTop <= 0;
+      const atBottom =
+        el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+
+      if ((goingUp && atTop) || (goingDown && atBottom)) return;
+
+      e.stopPropagation();
+    },
+    { passive: true }
+  );
+
+  el.addEventListener(
+    "wheel",
+    (e) => {
+      if (el.scrollHeight <= el.clientHeight + 1) return;
+
+      const atTop = el.scrollTop <= 0;
+      const atBottom =
+        el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+
+      if ((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom)) return;
+
+      e.stopPropagation();
+    },
+    { passive: true }
+  );
+}
+
 function slugFromTitle(title) {
   const base = String(title)
     .toLowerCase()
@@ -675,7 +732,9 @@ function applyContent(data) {
   const phoneBtn = document.getElementById("contact-phone");
   emailBtn.href = profile.email ? `mailto:${profile.email}` : "#";
   emailBtn.textContent = site.emailButton || "Email me";
-  phoneBtn.href = profile.phone ? `tel:${profile.phone.replace(/\s/g, "")}` : "#";
+  phoneBtn.href = profile.phone ? phoneToWhatsApp(profile.phone) : "#";
+  phoneBtn.target = "_blank";
+  phoneBtn.rel = "noopener noreferrer";
   phoneBtn.textContent = site.phoneButton || "Call / WhatsApp";
   document.getElementById("contact-footer").textContent = contact.footer || "";
 
@@ -693,6 +752,7 @@ async function bootstrap() {
       data = Store.empty();
     }
     applyContent(data);
+    setupProjectsMobileScroll();
 
     if (reducedMotion) {
       document.body.classList.add("reduced-motion");
@@ -747,6 +807,8 @@ window.addEventListener("pagehide", () => renderer.dispose());
 /* ================== Master scrubbed timeline ================== */
 
 function buildTimeline() {
+  if (isMobile) ScrollTrigger.normalizeScroll(true);
+
   const orbitEnd = orbitPos(-ORBIT_SWEEP, ORBIT_H1);
 
   // Initial layer states (GSAP owns autoAlpha from here on)
