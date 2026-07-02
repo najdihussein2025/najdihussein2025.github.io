@@ -44,6 +44,8 @@
    ============================================================ */
 
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ScrollToPlugin } from "gsap/ScrollToPlugin";
@@ -75,6 +77,10 @@ const CAM_IN = { x: 0, y: 2.85, z: -0.72 };           // final in-screen positio
 const GOLD = 0xc9a961;
 const DUST_COUNT = isMobile ? 10 : 25;
 const SHADOWS = !isMobile;
+const HAND_Y = 2.06;
+const AVATAR_URL = "assets/avatar.glb";
+const TYPING_URL = "assets/Typing.glb";
+const DRACO_PATH = "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/libs/draco/gltf/";
 
 /* ================== Renderer / scene / camera ================== */
 
@@ -339,108 +345,275 @@ const signLight = new THREE.PointLight(0x39ff6a, 5, 7, 2);
 signLight.position.set(0, 5.4, -2.5);
 scene.add(signLight);
 
-/* ================== Developer — readable seated figure ================== */
-/* Charcoal matte primitives, ~8° forward lean, hands on the keyboard.
-   Proportions tuned against head width to avoid the snowman look. */
+/* ================== Avatar helpers ================== */
+
+function findBone(skeleton, names) {
+  const list = Array.isArray(names) ? names : [names];
+  for (const name of list) {
+    for (const key of [name, `mixamorig:${name}`, `mixamorig${name}`]) {
+      const bone = skeleton.getBoneByName(key);
+      if (bone) return bone;
+    }
+  }
+  return null;
+}
+
+/* Mixamo animation → RPM avatar: strip the "mixamorig_" prefix, keep
+   rotation tracks, and rescale the Hips position track (Mixamo rigs are
+   in centimeters, the avatar is in meters). */
+function retargetMixamoClip(clip, sourceScene, skeleton) {
+  const targetHips = findBone(skeleton, "Hips");
+  const sourceHips = sourceScene.getObjectByName("mixamorig_Hips");
+  const hipsRatio =
+    targetHips && sourceHips ? targetHips.position.y / sourceHips.position.y : 0.01;
+
+  const tracks = [];
+  for (const track of clip.tracks) {
+    const dot = track.name.lastIndexOf(".");
+    const rawName = track.name.slice(0, dot);
+    const prop = track.name.slice(dot + 1);
+    const boneName = rawName.replace(/^mixamorig[_:]?/, "");
+    if (!findBone(skeleton, boneName)) continue;
+
+    if (prop === "quaternion") {
+      const clone = track.clone();
+      clone.name = `${boneName}.quaternion`;
+      tracks.push(clone);
+    } else if (prop === "position" && boneName === "Hips") {
+      const clone = track.clone();
+      clone.name = "Hips.position";
+      clone.values = clone.values.map((v) => v * hipsRatio);
+      tracks.push(clone);
+    }
+    // Other position/scale tracks are dropped — they'd break RPM bone lengths.
+  }
+  return new THREE.AnimationClip("typing", clip.duration, tracks);
+}
+
+/* Bone-anchored fit: bounding boxes ignore skeleton pose, so we scale
+   and place the avatar by its hips/head bones instead. Seat top ~1.34,
+   primitive head was at ~2.58. */
+function fitAvatarToSeat(root, skeleton) {
+  const hips = findBone(skeleton, "Hips");
+  const headBone = findBone(skeleton, "Head");
+  if (!hips || !headBone) return false;
+
+  // Face the monitor (-Z), back toward the default orbit camera
+  root.rotation.y = Math.PI;
+  root.scale.setScalar(1);
+  root.position.set(0, 0, 0);
+  root.updateMatrixWorld(true);
+
+  const hipsPos = new THREE.Vector3();
+  const headPos = new THREE.Vector3();
+  hips.getWorldPosition(hipsPos);
+  headBone.getWorldPosition(headPos);
+
+  const HIPS_TARGET = { x: 0, y: 1.47, z: -0.18 }; // seated, hands over the keyboard
+  const HEAD_TARGET_Y = 2.9;                       // slightly above primitive head
+
+  const scale = (HEAD_TARGET_Y - HIPS_TARGET.y) / Math.max(headPos.y - hipsPos.y, 0.01);
+  root.scale.setScalar(scale);
+  root.position.set(
+    HIPS_TARGET.x - hipsPos.x * scale,
+    HIPS_TARGET.y - hipsPos.y * scale,
+    HIPS_TARGET.z - hipsPos.z * scale
+  );
+  root.updateMatrixWorld(true);
+  return true;
+}
+
+function buildPrimitiveSilhouette(charcoal) {
+  const group = new THREE.Group();
+
+  const torso = shadowed(new THREE.Mesh(new THREE.CapsuleGeometry(0.24, 0.62, 6, 14), charcoal));
+  torso.scale.set(1.25, 1, 0.7);
+  torso.position.set(0, 1.86, -0.02);
+  torso.rotation.x = -0.14;
+  group.add(torso);
+
+  const shoulders = shadowed(new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.42, 4, 10), charcoal));
+  shoulders.rotation.z = Math.PI / 2;
+  shoulders.position.set(0, 2.26, -0.08);
+  group.add(shoulders);
+
+  const neckJoint = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.14, 10), charcoal));
+  neckJoint.position.set(0, 2.4, -0.1);
+  group.add(neckJoint);
+
+  const head = shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.17, 20, 16), charcoal));
+  head.scale.set(0.95, 1.1, 1.0);
+  head.position.set(0, 2.58, -0.12);
+  head.rotation.x = -0.18;
+  group.add(head);
+
+  const upperArmGeo = new THREE.CapsuleGeometry(0.07, 0.32, 4, 10);
+  const forearmGeo = new THREE.CapsuleGeometry(0.06, 0.48, 4, 10);
+  [-1, 1].forEach((side) => {
+    const upper = shadowed(new THREE.Mesh(upperArmGeo, charcoal));
+    upper.position.set(side * 0.31, 2.05, -0.19);
+    upper.rotation.x = 0.51;
+    upper.rotation.z = side * -0.08;
+    group.add(upper);
+
+    const forearm = shadowed(new THREE.Mesh(forearmGeo, charcoal));
+    forearm.position.set(side * 0.28, 1.95, -0.59);
+    forearm.rotation.x = -1.24;
+    group.add(forearm);
+  });
+
+  const handGeo = new THREE.BoxGeometry(0.1, 0.05, 0.14);
+  const handL = shadowed(new THREE.Mesh(handGeo, charcoal));
+  handL.position.set(-0.25, HAND_Y, -0.9);
+  group.add(handL);
+  const handR = shadowed(new THREE.Mesh(handGeo, charcoal));
+  handR.position.set(0.25, HAND_Y, -0.9);
+  group.add(handR);
+
+  const hips = shadowed(new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.28, 4, 10), charcoal));
+  hips.rotation.z = Math.PI / 2;
+  hips.position.set(0, 1.38, 0.05);
+  group.add(hips);
+
+  const thighGeo = new THREE.CapsuleGeometry(0.1, 0.4, 4, 10);
+  const calfGeo = new THREE.CapsuleGeometry(0.075, 1.0, 4, 10);
+  const footGeo = new THREE.BoxGeometry(0.15, 0.09, 0.32);
+  [-1, 1].forEach((side) => {
+    const thigh = shadowed(new THREE.Mesh(thighGeo, charcoal));
+    thigh.rotation.x = Math.PI / 2;
+    thigh.position.set(side * 0.145, 1.38, -0.25);
+    group.add(thigh);
+
+    const calf = shadowed(new THREE.Mesh(calfGeo, charcoal));
+    calf.rotation.x = 0.064;
+    calf.position.set(side * 0.15, 0.74, -0.56);
+    group.add(calf);
+
+    const foot = shadowed(new THREE.Mesh(footGeo, charcoal));
+    foot.position.set(side * 0.15, 0.05, -0.72);
+    group.add(foot);
+  });
+
+  return { group, handL, handR, head };
+}
+
+function buildChair(parent) {
+  const chair = new THREE.Group();
+  parent.add(chair);
+
+  const seat = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 0.85), chairMat));
+  seat.position.set(0, 1.28, 0.2);
+  chair.add(seat);
+
+  const backrest = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.05, 0.1), chairMat));
+  backrest.position.set(0, 1.95, 0.68);
+  backrest.rotation.x = 0.12;
+  chair.add(backrest);
+
+  const chairPost = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 1.1, 12), chairMat));
+  chairPost.position.set(0, 0.68, 0.2);
+  chair.add(chairPost);
+
+  const chairFoot = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.46, 0.05, 20), chairMat));
+  chairFoot.position.set(0, 0.05, 0.2);
+  chair.add(chairFoot);
+
+  return chair;
+}
+
+async function loadAvatarFigure(parent, silhouetteGroup) {
+  const dracoLoader = new DRACOLoader();
+  dracoLoader.setDecoderPath(DRACO_PATH);
+  const gltfLoader = new GLTFLoader();
+  gltfLoader.setDRACOLoader(dracoLoader);
+
+  try {
+    const [avatarGltf, typingGltf] = await Promise.all([
+      gltfLoader.loadAsync(AVATAR_URL),
+      gltfLoader.loadAsync(TYPING_URL),
+    ]);
+    const root = avatarGltf.scene;
+    let skeleton = null;
+
+    root.traverse((obj) => {
+      if (obj.isSkinnedMesh && obj.skeleton && !skeleton) skeleton = obj.skeleton;
+      if (!obj.isMesh) return;
+      obj.castShadow = SHADOWS;
+      obj.receiveShadow = SHADOWS;
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      mats.forEach((mat) => {
+        if (mat?.isMeshStandardMaterial) mat.envMapIntensity = 0.35;
+      });
+    });
+
+    if (!skeleton) {
+      console.warn("Avatar GLB has no skeleton — using silhouette fallback");
+      return null;
+    }
+
+    const sourceClip = typingGltf.animations?.[0];
+    if (!sourceClip) {
+      console.warn("Typing.glb has no animation — using silhouette fallback");
+      return null;
+    }
+
+    const clip = retargetMixamoClip(sourceClip, typingGltf.scene, skeleton);
+    if (!clip.tracks.length) {
+      console.warn("Typing clip retarget produced no tracks — using silhouette fallback");
+      return null;
+    }
+
+    const mixer = new THREE.AnimationMixer(root);
+    const action = mixer.clipAction(clip);
+    action.setLoop(THREE.LoopRepeat, Infinity);
+    action.play();
+    mixer.update(0); // apply the seated typing pose before measuring
+
+    if (!fitAvatarToSeat(root, skeleton)) {
+      console.warn("Avatar missing Hips/Head bones — using silhouette fallback");
+      return null;
+    }
+
+    parent.add(root);
+    silhouetteGroup.visible = false;
+
+    return { mixer };
+  } catch (err) {
+    console.warn("Avatar GLB failed to load — using silhouette fallback", err);
+    return null;
+  } finally {
+    dracoLoader.dispose();
+  }
+}
+
+/* ================== Developer — avatar GLB with primitive fallback ================== */
 
 const devGroup = new THREE.Group();
 devGroup.position.set(DEV_PIVOT.x, 0, DEV_PIVOT.z);
 scene.add(devGroup);
 
-// Torso — tapered (flattened capsule), leaning toward the screen
-const torso = shadowed(new THREE.Mesh(new THREE.CapsuleGeometry(0.24, 0.62, 6, 14), charcoal));
-torso.scale.set(1.25, 1, 0.7);
-torso.position.set(0, 1.86, -0.02);
-torso.rotation.x = -0.14; // ~8° forward
-devGroup.add(torso);
+const chairGroup = buildChair(devGroup);
 
-// Shoulder bar (~2.2 head-widths across incl. arms)
-const shoulders = shadowed(new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.42, 4, 10), charcoal));
-shoulders.rotation.z = Math.PI / 2;
-shoulders.position.set(0, 2.26, -0.08);
-devGroup.add(shoulders);
+const figureRoot = new THREE.Group();
+devGroup.add(figureRoot);
 
-// Neck + head, tilted slightly down at the screen
-const neckJoint = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.14, 10), charcoal));
-neckJoint.position.set(0, 2.4, -0.1);
-devGroup.add(neckJoint);
+const silhouette = buildPrimitiveSilhouette(charcoal);
+figureRoot.add(silhouette.group);
 
-const head = shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.17, 20, 16), charcoal));
-head.scale.set(0.95, 1.1, 1.0);
-head.position.set(0, 2.58, -0.12);
-head.rotation.x = -0.18;
-devGroup.add(head);
+let handL = silhouette.handL;
+let handR = silhouette.handR;
+let head = silhouette.head;
+let avatarRig = null;
 
-// Arms: shoulder → elbow (down-forward), elbow → hand on keyboard
-const upperArmGeo = new THREE.CapsuleGeometry(0.07, 0.32, 4, 10);
-const forearmGeo = new THREE.CapsuleGeometry(0.06, 0.48, 4, 10);
-[-1, 1].forEach((side) => {
-  const upper = shadowed(new THREE.Mesh(upperArmGeo, charcoal));
-  upper.position.set(side * 0.31, 2.05, -0.19);
-  upper.rotation.x = 0.51;
-  upper.rotation.z = side * -0.08;
-  devGroup.add(upper);
-
-  const forearm = shadowed(new THREE.Mesh(forearmGeo, charcoal));
-  forearm.position.set(side * 0.28, 1.95, -0.59);
-  forearm.rotation.x = -1.24;
-  devGroup.add(forearm);
-});
-
-// Hands: small rounded boxes ON the keyboard (idle sin-wave in rAF loop)
-const HAND_Y = 2.06;
-const handGeo = new THREE.BoxGeometry(0.1, 0.05, 0.14);
-const handL = shadowed(new THREE.Mesh(handGeo, charcoal));
-handL.position.set(-0.25, HAND_Y, -0.9);
-devGroup.add(handL);
-const handR = shadowed(new THREE.Mesh(handGeo, charcoal));
-handR.position.set(0.25, HAND_Y, -0.9);
-devGroup.add(handR);
-
-// Hips
-const hips = shadowed(new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.28, 4, 10), charcoal));
-hips.rotation.z = Math.PI / 2;
-hips.position.set(0, 1.38, 0.05);
-devGroup.add(hips);
-
-// Legs: thighs forward under the desk, calves down, feet tucked under
-const thighGeo = new THREE.CapsuleGeometry(0.1, 0.4, 4, 10);
-const calfGeo = new THREE.CapsuleGeometry(0.075, 1.0, 4, 10);
-const footGeo = new THREE.BoxGeometry(0.15, 0.09, 0.32);
-[-1, 1].forEach((side) => {
-  const thigh = shadowed(new THREE.Mesh(thighGeo, charcoal));
-  thigh.rotation.x = Math.PI / 2;
-  thigh.position.set(side * 0.145, 1.38, -0.25);
-  devGroup.add(thigh);
-
-  const calf = shadowed(new THREE.Mesh(calfGeo, charcoal));
-  calf.rotation.x = 0.064;
-  calf.position.set(side * 0.15, 0.74, -0.56);
-  devGroup.add(calf);
-
-  const foot = shadowed(new THREE.Mesh(footGeo, charcoal));
-  foot.position.set(side * 0.15, 0.05, -0.72);
-  devGroup.add(foot);
-});
-
-/* ================== Chair ================== */
-
-const seat = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 0.85), chairMat));
-seat.position.set(0, 1.28, 0.2);
-devGroup.add(seat);
-
-const backrest = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.05, 0.1), chairMat));
-backrest.position.set(0, 1.95, 0.68);
-backrest.rotation.x = 0.12; // slight recline
-devGroup.add(backrest);
-
-const chairPost = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 1.1, 12), chairMat));
-chairPost.position.set(0, 0.68, 0.2);
-devGroup.add(chairPost);
-
-const chairFoot = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.46, 0.05, 20), chairMat));
-chairFoot.position.set(0, 0.05, 0.2);
-devGroup.add(chairFoot);
+if (!isMobile) {
+  loadAvatarFigure(figureRoot, silhouette.group).then((rig) => {
+    if (rig) {
+      avatarRig = rig;
+      // Tuck the chair forward under the avatar (silhouette uses the default spot)
+      chairGroup.position.z = -0.3;
+    }
+  });
+}
 
 /* ================== Dust in the light beam ================== */
 
@@ -997,8 +1170,13 @@ function startLoop() {
         else if (p.position.z < DB.zMin) p.position.z = DB.zMax;
       }
 
-      handL.position.y = HAND_Y + Math.sin(t * 1.7) * 0.03;
-      handR.position.y = HAND_Y + Math.sin(t * 1.7 + 1.4) * 0.03;
+      if (avatarRig) {
+        avatarRig.mixer.update(dt);
+      } else {
+        handL.position.y = HAND_Y + Math.sin(t * 1.7) * 0.03;
+        handR.position.y = HAND_Y + Math.sin(t * 1.7 + 1.4) * 0.03;
+        head.rotation.y = Math.sin(t * 0.4) * 0.05;
+      }
 
       if (t >= nextFlick) {
         flickTarget = (Math.random() - 0.5) * 0.1;
@@ -1010,7 +1188,6 @@ function startLoop() {
       signLight.intensity = 5 + Math.sin(t * 2.3) * 0.7;
       lampLight.intensity = 8 + Math.sin(t * 1.1) * 0.9;
       devGroup.position.y = Math.sin(t * 0.9) * 0.012;
-      head.rotation.y = Math.sin(t * 0.4) * 0.05;
 
       drawCode(t);
       renderer.render(scene, camera);
