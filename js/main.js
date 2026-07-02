@@ -78,9 +78,15 @@ const GOLD = 0xc9a961;
 const DUST_COUNT = isMobile ? 10 : 25;
 const SHADOWS = !isMobile;
 const HAND_Y = 2.06;
-const AVATAR_URL = "assets/avatar.glb";
-const TYPING_URL = "assets/Typing.glb";
 const DRACO_PATH = "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/libs/draco/gltf/";
+
+function resolveAssetUrl(relativePath) {
+  // Resolve from js/main.js so paths stay correct on GitHub Pages (Linux, case-sensitive).
+  return new URL(relativePath, import.meta.url).href;
+}
+
+const AVATAR_URL = resolveAssetUrl("../assets/avatar.glb");
+const TYPING_URL = resolveAssetUrl("../assets/Typing.glb");
 
 /* ================== Renderer / scene / camera ================== */
 
@@ -521,6 +527,29 @@ function buildChair(parent) {
   return chair;
 }
 
+function loadGltfAsset(loader, url, label) {
+  return new Promise((resolve, reject) => {
+    loader.load(
+      url,
+      (gltf) => {
+        console.log(`${label} loaded successfully (${url})`);
+        resolve(gltf);
+      },
+      (event) => {
+        if (event.total > 0) {
+          const pct = Math.round((event.loaded / event.total) * 100);
+          console.log(`${label} loading: ${pct}%`);
+        }
+      },
+      (error) => {
+        console.error(`AVATAR LOAD FAILED: ${label}`, error);
+        console.error(`AVATAR LOAD FAILED: ${error?.message || String(error)}`);
+        reject(error);
+      }
+    );
+  });
+}
+
 async function loadAvatarFigure(parent, silhouetteGroup) {
   const dracoLoader = new DRACOLoader();
   dracoLoader.setDecoderPath(DRACO_PATH);
@@ -528,9 +557,11 @@ async function loadAvatarFigure(parent, silhouetteGroup) {
   gltfLoader.setDRACOLoader(dracoLoader);
 
   try {
+    console.log("Avatar load starting", { avatar: AVATAR_URL, typing: TYPING_URL });
+
     const [avatarGltf, typingGltf] = await Promise.all([
-      gltfLoader.loadAsync(AVATAR_URL),
-      gltfLoader.loadAsync(TYPING_URL),
+      loadGltfAsset(gltfLoader, AVATAR_URL, "avatar.glb"),
+      loadGltfAsset(gltfLoader, TYPING_URL, "Typing.glb"),
     ]);
     const root = avatarGltf.scene;
     let skeleton = null;
@@ -576,10 +607,13 @@ async function loadAvatarFigure(parent, silhouetteGroup) {
 
     parent.add(root);
     silhouetteGroup.visible = false;
+    console.log("Avatar loaded successfully");
 
     return { mixer };
   } catch (err) {
-    console.warn("Avatar GLB failed to load — using silhouette fallback", err);
+    console.error("AVATAR LOAD FAILED:", err);
+    console.error(`AVATAR LOAD FAILED: ${err?.message || String(err)}`);
+    console.warn("Using primitive silhouette fallback after avatar load failure");
     return null;
   } finally {
     dracoLoader.dispose();
@@ -613,6 +647,8 @@ if (!isMobile) {
       chairGroup.position.z = -0.3;
     }
   });
+} else {
+  console.log("Avatar skipped on mobile (<768px) — using primitive silhouette");
 }
 
 /* ================== Dust in the light beam ================== */
