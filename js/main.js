@@ -332,7 +332,7 @@ scene.add(book2);
 
 /* ================== "NajDev <>" green LED sign above the desk ================== */
 
-const signTexture = makeSignTexture("NajDev <>");
+const signTexture = makeSignTexture("NajDev");
 const sign = new THREE.Mesh(
   new THREE.PlaneGeometry(3.3, 0.93),
   new THREE.MeshBasicMaterial({
@@ -367,6 +367,12 @@ function findBone(skeleton, names) {
 /* Mixamo animation → RPM avatar: strip the "mixamorig_" prefix, keep
    rotation tracks, and rescale the Hips position track (Mixamo rigs are
    in centimeters, the avatar is in meters). */
+function wantsTypingPositionTrack(boneName) {
+  if (boneName === "Hips") return true;
+  // Finger + forearm translation drives visible keypress motion.
+  return /ForeArm|Hand/.test(boneName);
+}
+
 function retargetMixamoClip(clip, sourceScene, skeleton) {
   const targetHips = findBone(skeleton, "Hips");
   const sourceHips = sourceScene.getObjectByName("mixamorig_Hips");
@@ -385,13 +391,12 @@ function retargetMixamoClip(clip, sourceScene, skeleton) {
       const clone = track.clone();
       clone.name = `${boneName}.quaternion`;
       tracks.push(clone);
-    } else if (prop === "position" && boneName === "Hips") {
+    } else if (prop === "position" && wantsTypingPositionTrack(boneName)) {
       const clone = track.clone();
-      clone.name = "Hips.position";
+      clone.name = `${boneName}.position`;
       clone.values = clone.values.map((v) => v * hipsRatio);
       tracks.push(clone);
     }
-    // Other position/scale tracks are dropped — they'd break RPM bone lengths.
   }
   return new THREE.AnimationClip("typing", clip.duration, tracks);
 }
@@ -597,6 +602,7 @@ async function loadAvatarFigure(parent, silhouetteGroup) {
     const mixer = new THREE.AnimationMixer(root);
     const action = mixer.clipAction(clip);
     action.setLoop(THREE.LoopRepeat, Infinity);
+    action.timeScale = 1.15;
     action.play();
     mixer.update(0); // apply the seated typing pose before measuring
 
@@ -1309,7 +1315,7 @@ function makeCodeTexture(initialLines = ["// loading portfolio…"]) {
 /* ============================================================
    Green LED sign texture — glowing text on a transparent plane
    ============================================================ */
-function makeSignTexture(text) {
+function makeSignTexture(brand) {
   const W = 1024, H = 288;
   const canvas = document.createElement("canvas");
   canvas.width = W; canvas.height = H;
@@ -1318,26 +1324,58 @@ function makeSignTexture(text) {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
 
+  function drawGlowText(str, x, y, color, blur, size = 128) {
+    ctx.font = `600 ${size}px 'JetBrains Mono', monospace`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "#39ff6a";
+    ctx.shadowBlur = blur;
+    ctx.fillStyle = color;
+    ctx.fillText(str, x, y);
+  }
+
+  function drawCodeBracket(ch, x, y) {
+    ctx.font = "700 148px 'JetBrains Mono', monospace";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "#9fd8e8";
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = "#e8ffff";
+    ctx.fillText(ch, x, y);
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "#39ff6a";
+    ctx.lineWidth = 2.5;
+    ctx.strokeText(ch, x, y);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(ch, x, y);
+    return ctx.measureText(ch).width;
+  }
+
   function draw() {
     ctx.clearRect(0, 0, W, H);
+
     ctx.font = "600 128px 'JetBrains Mono', monospace";
-    ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    // Layered glow passes: wide halo first, then tighter, then bright core
-    ctx.shadowColor = "#39ff6a";
-    ctx.fillStyle = "#39ff6a";
-    for (const blur of [64, 30]) {
-      ctx.shadowBlur = blur;
-      ctx.fillText(text, W / 2, H / 2);
-    }
-    ctx.shadowBlur = 12;
-    ctx.fillStyle = "#cfffdd";
-    ctx.fillText(text, W / 2, H / 2);
+    const brandW = ctx.measureText(`${brand} `).width;
+    ctx.font = "700 148px 'JetBrains Mono', monospace";
+    const ltW = ctx.measureText("<").width;
+    const gtW = ctx.measureText(">").width;
+    const bracketGap = 18;
+    const totalW = brandW + ltW + bracketGap + gtW;
+    const startX = (W - totalW) / 2;
+    const y = H / 2;
+
+    for (const blur of [64, 30]) drawGlowText(`${brand} `, startX, y, "#39ff6a", blur);
+    drawGlowText(`${brand} `, startX, y, "#cfffdd", 12);
+
+    let bx = startX + brandW;
+    bx += drawCodeBracket("<", bx, y) + bracketGap;
+    drawCodeBracket(">", bx, y);
+
     texture.needsUpdate = true;
   }
 
   draw();
-  // Redraw once the mono webfont is actually loaded
   if (document.fonts?.ready) document.fonts.ready.then(draw);
   return texture;
 }
