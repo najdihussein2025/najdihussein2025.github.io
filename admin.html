@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>H·N — Private</title>
+  <meta name="robots" content="noindex, nofollow" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/admin.css" />
+  <style>
+    /* Prevent login + dashboard flashing together before JS runs */
+    body.auth-locked #dash { display: none !important; }
+    body:not(.auth-locked) #login-screen { display: none !important; }
+    body.auth-loading #login-screen,
+    body.auth-loading #dash { display: none !important; }
+  </style>
+</head>
+<body class="auth-locked auth-loading">
+
+  <!-- ============ LOGIN ============ -->
+  <div class="login-screen" id="login-screen">
+    <div class="login-card">
+      <p class="monogram-lg">H<span>·</span>N</p>
+      <p class="label">Private access</p>
+      <div class="rule rule--center"><span class="diamond"></span></div>
+      <input type="password" id="password" placeholder="Password" autocomplete="current-password" />
+      <button class="btn btn--solid" id="login-btn">Enter</button>
+      <p class="login-error" id="login-error" hidden>Wrong password.</p>
+    </div>
+  </div>
+
+  <!-- ============ DASHBOARD ============ -->
+  <div class="dash" id="dash" aria-hidden="true">
+    <header class="dash-nav">
+      <div class="dash-nav-inner">
+        <span class="monogram-lg small">H<span>·</span>N <em>— Admin</em></span>
+        <div class="dash-nav-actions">
+          <a class="btn btn--quiet" href="index.html" target="_blank">Preview site</a>
+          <button class="btn btn--quiet" id="logout-btn">Log out</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="dash-main">
+
+      <!-- Publish bar -->
+      <section class="panel publish-panel">
+        <div>
+          <h3>Publish your changes</h3>
+          <p class="hint">
+            Edits save instantly as a <strong>draft on this browser only</strong>.
+            To make them live for visitors: download <code>portfolio.json</code>, replace
+            <code>data/portfolio.json</code> in your repo, and push.
+          </p>
+        </div>
+        <div class="publish-actions">
+          <button class="btn btn--solid" id="download-btn">Download portfolio.json</button>
+          <button class="btn btn--quiet" id="discard-btn">Discard draft</button>
+        </div>
+      </section>
+
+      <!-- Profile -->
+      <section class="panel">
+        <p class="label">Profile</p>
+        <div class="profile-grid">
+          <div class="photo-block">
+            <div class="photo-preview">
+              <img id="admin-photo" alt="Current profile photo" />
+              <div class="photo-empty" id="photo-empty">No photo</div>
+            </div>
+            <label class="btn file-btn">
+              Change photo
+              <input type="file" id="photo-input" accept="image/*" hidden />
+            </label>
+          </div>
+          <div class="profile-fields">
+            <label class="field">
+              <span>Name</span>
+              <input type="text" id="f-name" />
+            </label>
+            <label class="field">
+              <span>Title</span>
+              <input type="text" id="f-title" />
+            </label>
+            <label class="field">
+              <span>Location</span>
+              <input type="text" id="f-location" />
+            </label>
+            <label class="field">
+              <span>Tagline</span>
+              <input type="text" id="f-tagline" />
+            </label>
+            <label class="field">
+              <span>Intro</span>
+              <textarea id="f-intro" rows="3"></textarea>
+            </label>
+            <label class="field field-inline">
+              <input type="checkbox" id="f-available" />
+              <span>Show "accepting new freelance projects" badge</span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- About -->
+      <section class="panel" id="about" data-section="about">
+        <p class="label">About page</p>
+        <div class="form-grid">
+          <label class="field">
+            <span>Heading</span>
+            <input type="text" id="a-heading" />
+          </label>
+          <label class="field field-wide">
+            <span>Bio</span>
+            <textarea id="a-bio" rows="4"></textarea>
+          </label>
+          <label class="field field-wide">
+            <span>Tech badges (comma separated)</span>
+            <input type="text" id="a-badges" placeholder=".NET & C#, Laravel & PHP, React, SQL" />
+          </label>
+        </div>
+      </section>
+
+      <!-- Contact -->
+      <section class="panel" id="contact" data-section="contact">
+        <p class="label">Contact page</p>
+        <div class="form-grid">
+          <label class="field">
+            <span>Email</span>
+            <input type="email" id="c-email" />
+          </label>
+          <label class="field">
+            <span>Phone</span>
+            <input type="text" id="c-phone" />
+          </label>
+          <label class="field field-wide">
+            <span>Terminal line 1</span>
+            <input type="text" id="c-term1" />
+          </label>
+          <label class="field field-wide">
+            <span>Terminal line 2</span>
+            <input type="text" id="c-term2" />
+          </label>
+          <label class="field field-wide">
+            <span>Footer</span>
+            <input type="text" id="c-footer" />
+          </label>
+        </div>
+      </section>
+
+      <!-- Projects -->
+      <section class="panel" id="projects" data-section="work">
+        <div class="panel-head">
+          <p class="label">Projects</p>
+          <div class="panel-head-actions">
+            <button class="btn btn--danger" id="delete-all-projects-btn">Delete all</button>
+            <button class="btn" id="add-project-btn">+ Add project</button>
+          </div>
+        </div>
+        <div id="admin-projects"></div>
+      </section>
+
+      <!-- Desktop / OS -->
+      <section class="panel" id="desktop" data-section="desktop">
+        <p class="label">Desktop background</p>
+        <div class="form-grid">
+          <label class="field">
+            <span>OS brand</span>
+            <input type="text" id="d-brand" />
+          </label>
+          <label class="field">
+            <span>Top bar path</span>
+            <input type="text" id="d-path" />
+          </label>
+          <label class="field">
+            <span>Top bar location</span>
+            <input type="text" id="d-location" />
+          </label>
+          <label class="field field-wide">
+            <span>Background code (wallpaper)</span>
+            <textarea id="d-wallpaper" rows="8"></textarea>
+          </label>
+          <label class="field field-wide">
+            <span>3D monitor code (one line per row)</span>
+            <textarea id="d-monitor" rows="6"></textarea>
+          </label>
+        </div>
+      </section>
+
+      <!-- Add/edit form (hidden until needed) -->
+      <section class="panel" id="project-form-panel" hidden>
+        <p class="label" id="form-title">New project</p>
+        <div class="form-grid">
+          <label class="field">
+            <span>Title</span>
+            <input type="text" id="p-title" placeholder="Project name" />
+          </label>
+          <label class="field">
+            <span>File name (optional)</span>
+            <input type="text" id="p-slug" placeholder="my-project.sys" />
+          </label>
+          <label class="field">
+            <span>Type</span>
+            <input type="text" id="p-type" placeholder="Freelance / Internship / University / Personal" />
+          </label>
+          <label class="field field-wide">
+            <span>Description</span>
+            <textarea id="p-description" rows="3" placeholder="One or two sentences about what you built."></textarea>
+          </label>
+          <label class="field field-wide">
+            <span>Stack (comma separated)</span>
+            <input type="text" id="p-stack" placeholder=".NET, C#, SQL" />
+          </label>
+          <label class="field">
+            <span>GitHub URL (optional)</span>
+            <input type="url" id="p-github" placeholder="https://github.com/..." />
+          </label>
+          <label class="field">
+            <span>Live project URL (optional)</span>
+            <input type="url" id="p-url" placeholder="https://your-project.com" />
+          </label>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn--solid" id="save-project-btn">Save project</button>
+          <button class="btn btn--quiet" id="cancel-project-btn">Cancel</button>
+        </div>
+      </section>
+
+      <p class="toast" id="toast" hidden></p>
+    </main>
+  </div>
+
+  <script src="js/store.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

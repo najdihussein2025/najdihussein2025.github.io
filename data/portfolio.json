@@ -1,0 +1,116 @@
+{
+  "site": {
+    "monogram": "H·N",
+    "introHint": "scroll to enter the workspace",
+    "emailButton": "Email me",
+    "phoneButton": "Call / WhatsApp",
+    "navCta": "Start a project"
+  },
+  "profile": {
+    "name": "Hussein Najdi",
+    "title": "Full-Stack Developer",
+    "location": "Beirut, Lebanon",
+    "tagline": "Bespoke software, engineered for your business.",
+    "intro": "I design and build tailored web platforms, business systems and APIs for clients who expect their software to work beautifully — and keep working.",
+    "email": "husseinnajdi2025@outlook.com",
+    "phone": "+961 81 995 013",
+    "linkedin": "",
+    "photo": "assets/me.jpg",
+    "available": true
+  },
+  "about": {
+    "heading": "Hussein Najdi",
+    "bio": "Full-stack developer based in Beirut, building web platforms and business systems end-to-end — from database architecture to polished interfaces. I work with companies and founders who need software that's built to last, not just to launch.",
+    "badges": [".NET & C#", "Laravel & PHP", "React", "SQL"]
+  },
+  "contact": {
+    "terminalLine1": "hussein@beirut:~$ ./start-project.sh",
+    "terminalLine2": "Ready to build something worth keeping.",
+    "footer": "© 2026 Hussein Najdi — Beirut, Lebanon"
+  },
+  "desktop": {
+    "brand": "HN-OS",
+    "path": "~/workspace — hussein@beirut",
+    "location": "beirut · lebanon",
+    "aboutPath": "~/about-me/",
+    "projectsPath": "~/projects/",
+    "contactTitle": "hussein@beirut: ~",
+    "wallpaper": "public class Developer\n{\n    public string Name  => \"Hussein Najdi\";\n    public string City  => \"Beirut\";\n    public string[] Stack => new[] { \".NET\", \"Laravel\", \"React\", \"SQL\" };\n\n    public Product Build(Idea idea) =>\n        idea.Refine()\n            .Architect()\n            .Ship();\n\n    private readonly Craft _craft = Craft.Honest;\n}\n\n$ dotnet build          Build succeeded. 0 warnings.\n$ php artisan migrate   Migrating: clients, invoices, renewals\n\napp.MapGet(\"/api/projects\", async (Db db) =>\n    await db.Projects\n        .OrderByDescending(p => p.Year)\n        .ToListAsync());\n\nconst portfolio = scenes.reduce((story, scene) =>\n    story.enter(scene), camera.start());\n\n$ git commit -m \"built to last, not just to launch\"\n$ git push origin main   → deployed",
+    "monitorCode": [
+      "public class Developer {",
+      "    public string Name  => \"Hussein Najdi\";",
+      "    public string City  => \"Beirut\";",
+      "    public Product Build(Idea idea) =>",
+      "        idea.Refine()",
+      "            .Architect()",
+      "            .Ship(); // and keep it working",
+      "}",
+      "",
+      "app.MapGet(\"/api/projects\", async (Db db) =>",
+      "    await db.Projects",
+      "        .OrderByDescending(p => p.Year)",
+      "        .ToListAsync());",
+      "",
+      "$ dotnet build   →  Build succeeded.",
+      "$ php artisan migrate --force",
+      "Migrating: clients, invoices, renewals",
+      ""
+    ]
+  },
+  "projects": [
+    {
+      "title": "Agriculture Shop Management System",
+      "slug": "agriculture-shop.sys",
+      "type": "Freelance",
+      "description": "Inventory, sales and customer records for daily real-world use.",
+      "stack": [".NET", "C#", "SQL"],
+      "github": "",
+      "url": ""
+    },
+    {
+      "title": "Tutor Web System",
+      "slug": "tutor-platform.app",
+      "type": "Freelance",
+      "description": "Multi-user tutoring platform with complex scheduling.",
+      "stack": ["PHP", "Laravel", "MySQL"],
+      "github": "",
+      "url": ""
+    },
+    {
+      "title": "Client Payment Manager",
+      "slug": "client-pay.saas",
+      "type": "Freelance",
+      "description": "Tracks freelance clients, projects and yearly renewals.",
+      "stack": ["Laravel", "React"],
+      "github": "",
+      "url": ""
+    },
+    {
+      "title": "Online Learning Platform",
+      "slug": "learning-platform.app",
+      "type": "Internship · IDS",
+      "description": "Full-stack learning platform delivered during my internship at Integrated Digital Systems.",
+      "stack": [".NET", "JavaScript", "SQL"],
+      "github": "",
+      "url": ""
+    },
+    {
+      "title": "Travel Agency Web API",
+      "slug": "travel-api.net",
+      "type": "Personal",
+      "description": "RESTful .NET Web API with layered architecture, EF Core, and JWT authentication.",
+      "stack": ["ASP.NET Core", "EF Core", "JWT"],
+      "github": "",
+      "url": ""
+    },
+    {
+      "title": "Azure DevOps CI/CD Pipeline",
+      "slug": "azure-cicd.yaml",
+      "type": "University",
+      "description": "Automated build and deployment pipelines with automated testing.",
+      "stack": ["Azure DevOps", "Git"],
+      "github": "",
+      "url": ""
+    }
+  ]
+}
