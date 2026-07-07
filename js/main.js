@@ -57,6 +57,12 @@ gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
 const isMobile = window.innerWidth < 768;
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+const WEBGL_OFF_PROGRESS = 0.32;
+let webglActive = true;
+let scrollProgress = 0;
+let navScrolled = false;
+let lastTermChars = -1;
+
 // Single source of truth for nav jumps — scroll progress where each
 // scene is FULLY open and readable. Tune here.
 const SCENES = { top: 0, about: 0.38, work: 0.70, contact: 0.99 };
@@ -92,7 +98,10 @@ const TYPING_URL = resolveAssetUrl("../assets/Typing.glb");
 
 const host = document.getElementById("webgl");
 
-const renderer = new THREE.WebGLRenderer({ antialias: !isMobile });
+const renderer = new THREE.WebGLRenderer({
+  antialias: !isMobile,
+  powerPreference: "high-performance",
+});
 renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 if (SHADOWS) {
@@ -153,9 +162,11 @@ floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = SHADOWS;
 scene.add(floor);
 
-const grid = new THREE.GridHelper(40, 40, 0x22222a, 0x17171d);
-grid.position.y = 0.002;
-scene.add(grid);
+if (!isMobile) {
+  const grid = new THREE.GridHelper(40, 40, 0x22222a, 0x17171d);
+  grid.position.y = 0.002;
+  scene.add(grid);
+}
 
 const wallMat = new THREE.MeshStandardMaterial({ color: 0x0e0e12, roughness: 0.95 });
 const backWall = new THREE.Mesh(new THREE.PlaneGeometry(40, 14), wallMat);
@@ -631,14 +642,14 @@ let handR = silhouette.handR;
 let head = silhouette.head;
 let avatarRig = null;
 
-// Temporarily load avatar on mobile too (was: desktop-only via !isMobile)
-loadAvatarFigure(figureRoot, silhouette.group).then((rig) => {
-  if (rig) {
-    avatarRig = rig;
-    // Tuck the chair forward under the avatar (silhouette uses the default spot)
-    chairGroup.position.z = -0.3;
-  }
-});
+if (!isMobile) {
+  loadAvatarFigure(figureRoot, silhouette.group).then((rig) => {
+    if (rig) {
+      avatarRig = rig;
+      chairGroup.position.z = -0.3;
+    }
+  });
+}
 
 /* ================== Dust in the light beam ================== */
 
@@ -731,6 +742,8 @@ const termState = { chars: 0 };
 
 function renderTerminal() {
   const n = Math.floor(termState.chars);
+  if (n === lastTermChars) return;
+  lastTermChars = n;
   const l1 = termLine1.slice(0, Math.min(n, termLine1.length));
   const l2 = n > termLine1.length ? termLine2.slice(0, n - termLine1.length) : "";
   terminalEl.innerHTML =
@@ -1004,9 +1017,28 @@ window.addEventListener("pagehide", () => renderer.dispose());
 
 /* ================== Master scrubbed timeline ================== */
 
-function buildTimeline() {
-  if (isMobile) ScrollTrigger.normalizeScroll(true);
+function setWebglActive(active) {
+  if (webglActive === active) return;
+  webglActive = active;
+  host.style.visibility = active ? "visible" : "hidden";
+}
 
+function onScrollProgress(progress) {
+  scrollProgress = progress;
+  if (progress > 0.2) loadPhoto();
+  setWebglActive(progress < WEBGL_OFF_PROGRESS);
+  wallpaperTrack?.classList.toggle("os-wallpaper-active", progress >= 0.30);
+  updateLayerInteractivity(progress);
+}
+
+function updateLayerInteractivity(progress) {
+  layerIntro.classList.toggle("interactive", progress < 0.06);
+  layerAbout.classList.toggle("interactive", progress >= 0.32 && progress < 0.42);
+  layerProjects.classList.toggle("interactive", progress >= 0.44 && progress < 0.80);
+  layerContact.classList.toggle("interactive", progress >= 0.84);
+}
+
+function buildTimeline() {
   const orbitEnd = orbitPos(-ORBIT_SWEEP, ORBIT_H1);
 
   // Initial layer states (GSAP owns autoAlpha from here on)
@@ -1021,50 +1053,69 @@ function buildTimeline() {
       trigger: "#scroll-track",
       start: "top top",
       end: "bottom bottom",
-      scrub: 1,
+      scrub: isMobile ? 0.3 : 1,
       invalidateOnRefresh: true,
-      onUpdate: (self) => { if (self.progress > 0.2) loadPhoto(); },
+      onUpdate: (self) => onScrollProgress(self.progress),
     },
   });
 
   /* --- PHASE 1: intro text out (0.02–0.08) --- */
-  tl.to(layerIntro, { autoAlpha: 0, y: -60, duration: 0.06 }, 0.02);
+  tl.to(layerIntro, { autoAlpha: 0, y: isMobile ? -30 : -60, duration: 0.06 }, 0.02);
 
-  /* --- PHASE 2: orbit (0.08–0.22) — constant radius, no zoom --- */
-  const orbit = { a: 0, h: ORBIT_H0 };
-  tl.to(orbit, {
-    a: -ORBIT_SWEEP,
-    h: ORBIT_H1,
-    duration: 0.14,
-    onUpdate: () => {
-      const p = orbitPos(orbit.a, orbit.h);
-      cam.px = p.x; cam.py = p.y; cam.pz = p.z;
-      applyCamera();
-    },
-  }, 0.08);
+  if (isMobile) {
+    /* --- MOBILE: skip orbit, compressed dive from intro camera (0.06–0.28) --- */
+    const introPos = orbitPos(0, ORBIT_H0);
 
-  /* --- PHASE 3: pause 0.22–0.24 (no tweens), then dive --- */
-  // Rise to the over-shoulder waypoint (explicit from = orbit end,
-  // so reversibility and mid-jump initialization are exact)
-  tl.fromTo(cam,
-    { px: orbitEnd.x, py: orbitEnd.y, pz: orbitEnd.z },
-    { px: OVER_SHOULDER.x, py: OVER_SHOULDER.y, pz: OVER_SHOULDER.z,
-      duration: 0.03, onUpdate: applyCamera, immediateRender: false },
-    0.24);
+    tl.fromTo(cam,
+      { px: introPos.x, py: introPos.y, pz: introPos.z },
+      { px: OVER_SHOULDER.x, py: OVER_SHOULDER.y, pz: OVER_SHOULDER.z,
+        duration: 0.06, onUpdate: applyCamera, immediateRender: false },
+      0.06);
 
-  // Plunge into the screen; lookAt lerps head-midpoint → screen center
-  tl.fromTo(cam,
-    { px: OVER_SHOULDER.x, py: OVER_SHOULDER.y, pz: OVER_SHOULDER.z,
-      lx: LOOK_ORBIT.x, ly: LOOK_ORBIT.y, lz: LOOK_ORBIT.z },
-    { px: CAM_IN.x, py: CAM_IN.y, pz: CAM_IN.z,
-      lx: SCREEN_C.x, ly: SCREEN_C.y, lz: SCREEN_C.z,
-      duration: 0.05, onUpdate: applyCamera, immediateRender: false },
-    0.27);
+    tl.fromTo(cam,
+      { px: OVER_SHOULDER.x, py: OVER_SHOULDER.y, pz: OVER_SHOULDER.z,
+        lx: LOOK_ORBIT.x, ly: LOOK_ORBIT.y, lz: LOOK_ORBIT.z },
+      { px: CAM_IN.x, py: CAM_IN.y, pz: CAM_IN.z,
+        lx: SCREEN_C.x, ly: SCREEN_C.y, lz: SCREEN_C.z,
+        duration: 0.06, onUpdate: applyCamera, immediateRender: false },
+      0.10);
 
-  // FOV 75 → 90 across the whole dive
-  tl.fromTo(cam, { fov: FOV_BASE },
-    { fov: FOV_DIVE, duration: 0.08, onUpdate: applyCamera, immediateRender: false },
-    0.24);
+    tl.fromTo(cam, { fov: FOV_BASE },
+      { fov: FOV_DIVE, duration: 0.10, onUpdate: applyCamera, immediateRender: false },
+      0.06);
+  } else {
+    /* --- PHASE 2: orbit (0.08–0.22) — constant radius, no zoom --- */
+    const orbit = { a: 0, h: ORBIT_H0 };
+    tl.to(orbit, {
+      a: -ORBIT_SWEEP,
+      h: ORBIT_H1,
+      duration: 0.14,
+      onUpdate: () => {
+        const p = orbitPos(orbit.a, orbit.h);
+        cam.px = p.x; cam.py = p.y; cam.pz = p.z;
+        applyCamera();
+      },
+    }, 0.08);
+
+    /* --- PHASE 3: pause 0.22–0.24 (no tweens), then dive --- */
+    tl.fromTo(cam,
+      { px: orbitEnd.x, py: orbitEnd.y, pz: orbitEnd.z },
+      { px: OVER_SHOULDER.x, py: OVER_SHOULDER.y, pz: OVER_SHOULDER.z,
+        duration: 0.03, onUpdate: applyCamera, immediateRender: false },
+      0.24);
+
+    tl.fromTo(cam,
+      { px: OVER_SHOULDER.x, py: OVER_SHOULDER.y, pz: OVER_SHOULDER.z,
+        lx: LOOK_ORBIT.x, ly: LOOK_ORBIT.y, lz: LOOK_ORBIT.z },
+      { px: CAM_IN.x, py: CAM_IN.y, pz: CAM_IN.z,
+        lx: SCREEN_C.x, ly: SCREEN_C.y, lz: SCREEN_C.z,
+        duration: 0.05, onUpdate: applyCamera, immediateRender: false },
+      0.27);
+
+    tl.fromTo(cam, { fov: FOV_BASE },
+      { fov: FOV_DIVE, duration: 0.08, onUpdate: applyCamera, immediateRender: false },
+      0.24);
+  }
 
   /* --- Crossfade 3D screen → HTML OS desktop (0.30–0.32) --- */
   tl.to(osDesktop, { autoAlpha: 1, duration: 0.02 }, 0.30);
@@ -1138,19 +1189,19 @@ function buildTimeline() {
     { autoAlpha: 1, y: 0, duration: 0.025, immediateRender: false }, 0.96);
   // End state persists — nothing scheduled after 0.985
 
-  /* --- Pointer events: a layer is clickable only while visible --- */
-  [layerIntro, layerAbout, layerProjects, layerContact].forEach((layer) => {
-    new MutationObserver(() => {
-      layer.classList.toggle("interactive", gsap.getProperty(layer, "opacity") > 0.5);
-    }).observe(layer, { attributes: true, attributeFilter: ["style"] });
-  });
   layerIntro.classList.add("interactive");
 
   /* --- Nav background on scroll --- */
   ScrollTrigger.create({
     start: 1,
     end: "max",
-    onUpdate: (self) => nav.classList.toggle("scrolled", self.scroll() > 40),
+    onUpdate: (self) => {
+      const should = self.scroll() > 40;
+      if (should !== navScrolled) {
+        navScrolled = should;
+        nav.classList.toggle("scrolled", should);
+      }
+    },
   });
 }
 
@@ -1179,8 +1230,19 @@ function startLoop() {
   let firstFrame = true;
   let nextFlick = 0;
   let flickTarget = 0;
+  let frameCount = 0;
 
   function tick() {
+    requestAnimationFrame(tick);
+
+    if (!webglActive) return;
+
+    // Throttle to ~30fps on mobile during scroll-linked 3D phase
+    if (isMobile) {
+      frameCount++;
+      if (frameCount % 2 !== 0) return;
+    }
+
     try {
       const t = clock.getElapsedTime();
       const dt = Math.min(clock.getDelta(), 0.05);
@@ -1214,7 +1276,7 @@ function startLoop() {
       lampLight.intensity = 8 + Math.sin(t * 1.1) * 0.9;
       devGroup.position.y = Math.sin(t * 0.9) * 0.012;
 
-      drawCode(t);
+      if (!isMobile) drawCode(t);
       renderer.render(scene, camera);
 
       if (firstFrame) {
@@ -1225,7 +1287,6 @@ function startLoop() {
       console.error("Render loop error:", err);
       dismissLoader();
     }
-    requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
 }

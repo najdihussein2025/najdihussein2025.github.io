@@ -127,7 +127,11 @@ img { display: block; max-width: 100%; }
   left: 0;
   right: 0;
   animation: os-code-scroll 52s linear infinite;
-  will-change: transform;
+  animation-play-state: paused;
+}
+
+.os-wallpaper-track.os-wallpaper-active {
+  animation-play-state: running;
 }
 
 .os-wallpaper-code {
@@ -639,8 +643,16 @@ body.reduced-motion .os-wallpaper-track { animation: none; }
 /* ---------- Mobile ---------- */
 
 @media (max-width: 768px) {
-  /* scroll-track height intentionally NOT overridden — kept at 650vh (same as desktop)
-     so touch and wheel users traverse the same number of scroll units for the full orbit. */
+  #scroll-track { height: 400vh; }
+
+  .nav.scrolled {
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: none;
+  }
+
+  .window { backdrop-filter: none; }
+
+  .os-wallpaper-code { filter: none; }
 
   .nav nav a:not(.nav-cta) { display: none; }
   .window-body { padding: 1.2rem 1.1rem; }
